@@ -18,10 +18,20 @@ Numbers marked "đo tham khảo" are reference measurements, not guarantees. Pri
 index.html        the page
 assets/           styles, scripts, content, fonts (Be Vietnam Pro and JetBrains Mono, both OFL)
 diagrams/         diagrams generated with archify, embedded as iframes
-diagrams/src/     the JSON specs the diagrams were generated from
+diagrams/src/     the JSON specs the diagrams were generated from, and vi.json, the viewer's Vietnamese UI strings
+diagrams/build.mjs regenerates the diagrams from the specs
 ```
 
 The site is static with no build step. To view it locally, serve the folder with any static file server.
+
+The diagrams are committed as HTML. To regenerate them after editing a spec, run from the repository root with archify 3.x:
+
+```bash
+node diagrams/build.mjs <archify-skill-dir>             # all diagrams
+node diagrams/build.mjs <archify-skill-dir> overview    # one diagram
+```
+
+If a diagram's canvas size changes, update its `--ar` ratio in `index.html` to match the `viewBox` of the generated SVG.
 
 ## Licenses
 

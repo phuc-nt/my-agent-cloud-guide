@@ -3,6 +3,8 @@
   "diagram_type": "dataflow",
   "meta": {
     "title": "Dữ liệu của home: snapshot, lịch sử cấu hình, drop",
+    "locale": "vi",
+    "output": "diagrams/sync.html",
     "viewBox": [
       1080,
       636

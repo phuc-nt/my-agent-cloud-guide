@@ -3,11 +3,9 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "my-agent-crew trên Cloudflare: tổng quan",
+    "locale": "vi",
+    "output": "diagrams/overview.html",
     "quality_profile": "showcase",
-    "viewBox": [
-      1378,
-      680
-    ],
     "views": [
       {
         "id": "request-path",

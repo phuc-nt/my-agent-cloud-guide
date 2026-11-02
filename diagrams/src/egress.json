@@ -3,6 +3,8 @@
   "diagram_type": "workflow",
   "meta": {
     "title": "Một lệnh ghi ra SaaS: approval rồi credential ở egress",
+    "locale": "vi",
+    "output": "diagrams/egress.html",
     "quality_profile": "showcase",
     "views": [
       {

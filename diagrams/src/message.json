@@ -3,61 +3,307 @@
   "diagram_type": "sequence",
   "meta": {
     "title": "Một tin nhắn đi qua hệ thống, có approval",
-    "viewBox": [930, 1240],
+    "locale": "vi",
+    "output": "diagrams/message.html",
     "column_fit": "spread",
     "quality_profile": "showcase"
   },
   "participants": [
-    { "id": "user", "type": "frontend", "label": "Người dùng", "sublabel": "điện thoại" },
-    { "id": "tg", "type": "external", "label": "Telegram", "sublabel": "Bot API" },
-    { "id": "worker", "type": "cloud", "label": "Worker", "sublabel": "control plane" },
-    { "id": "durable", "type": "backend", "label": "Durable Object", "sublabel": "một cho mỗi home" },
-    { "id": "sidecar", "type": "security", "label": "Sidecar", "sublabel": "cổng :8080" },
-    { "id": "engine", "type": "backend", "label": "Engine", "sublabel": "my-agent-crew" },
-    { "id": "model", "type": "external", "label": "Model API", "sublabel": "LLM provider" }
+    {
+      "id": "user",
+      "type": "frontend",
+      "label": "Người dùng",
+      "sublabel": "điện thoại"
+    },
+    {
+      "id": "tg",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "Bot API"
+    },
+    {
+      "id": "worker",
+      "type": "cloud",
+      "label": "Worker",
+      "sublabel": "control plane"
+    },
+    {
+      "id": "durable",
+      "type": "backend",
+      "label": "Durable Object",
+      "sublabel": "một cho mỗi home"
+    },
+    {
+      "id": "sidecar",
+      "type": "security",
+      "label": "Sidecar",
+      "sublabel": "cổng :8080"
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "Engine",
+      "sublabel": "my-agent-crew"
+    },
+    {
+      "id": "model",
+      "type": "external",
+      "label": "Model API",
+      "sublabel": "LLM provider"
+    }
   ],
   "segments": [
-    { "from": 150, "to": 500, "label": "Tin nhắn vào, đánh thức home" },
-    { "from": 516, "to": 742, "label": "Tool call cần duyệt" },
-    { "from": 758, "to": 1130, "label": "Duyệt rồi chạy tiếp" }
+    {
+      "from": 150,
+      "to": 500,
+      "label": "Tin nhắn vào, đánh thức home"
+    },
+    {
+      "from": 516,
+      "to": 742,
+      "label": "Tool call cần duyệt"
+    },
+    {
+      "from": 758,
+      "to": 1134,
+      "label": "Duyệt rồi chạy tiếp"
+    }
   ],
   "messages": [
-    { "from": "user", "to": "tg", "y": 180, "label": "gửi tin nhắn", "variant": "emphasis" },
-    { "from": "tg", "to": "worker", "y": 222, "label": "POST webhook + secret token", "variant": "security" },
-    { "from": "worker", "to": "durable", "y": 264, "label": "chuyển update", "variant": "default" },
-    { "from": "durable", "to": "sidecar", "y": 306, "label": "đánh thức container nếu ngủ", "variant": "dashed" },
-    { "from": "sidecar", "to": "engine", "y": 348, "label": "restore snapshot từ R2, start", "variant": "default", "note": "cold start 12–26 s" },
-    { "from": "engine", "to": "sidecar", "y": 390, "label": "ready", "variant": "return" },
-    { "from": "durable", "to": "sidecar", "y": 432, "label": "gọi API + control key", "variant": "security" },
-    { "from": "sidecar", "to": "engine", "y": 474, "label": "chuyển vào 127.0.0.1", "variant": "default" },
-    { "from": "engine", "to": "model", "y": 546, "label": "prompt + tools", "variant": "emphasis" },
-    { "from": "model", "to": "engine", "y": 588, "label": "tool call ghi dữ liệu", "variant": "return" },
-    { "from": "engine", "to": "tg", "y": 630, "label": "tạo approval, gửi nút Duyệt", "variant": "dashed" },
-    { "from": "tg", "to": "user", "y": 672, "label": "nút Duyệt / Từ chối", "variant": "dashed" },
-    { "from": "engine", "to": "durable", "y": 714, "label": "awaiting_approval, home được ngủ", "variant": "return" },
-    { "from": "user", "to": "tg", "y": 788, "label": "bấm Duyệt", "variant": "emphasis" },
-    { "from": "tg", "to": "worker", "y": 830, "label": "POST webhook (callback)", "variant": "security" },
-    { "from": "worker", "to": "durable", "y": 872, "label": "chuyển quyết định", "variant": "default" },
-    { "from": "durable", "to": "sidecar", "y": 914, "label": "đánh thức nếu cần", "variant": "dashed", "note": "đo được 17.7 s khi đang ngủ" },
-    { "from": "sidecar", "to": "engine", "y": 956, "label": "quyết định approval", "variant": "default" },
-    { "from": "engine", "to": "model", "y": 998, "label": "chạy tool, gửi kết quả", "variant": "emphasis" },
-    { "from": "model", "to": "engine", "y": 1040, "label": "câu trả lời", "variant": "return" },
-    { "from": "engine", "to": "tg", "y": 1082, "label": "sendMessage trả lời", "variant": "emphasis" },
-    { "from": "tg", "to": "user", "y": 1124, "label": "nhận câu trả lời", "variant": "return" }
+    {
+      "from": "user",
+      "to": "tg",
+      "y": 180,
+      "label": "gửi tin nhắn",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tg",
+      "to": "worker",
+      "y": 222,
+      "label": "POST webhook + secret token",
+      "variant": "security"
+    },
+    {
+      "from": "worker",
+      "to": "durable",
+      "y": 264,
+      "label": "chuyển update",
+      "variant": "default"
+    },
+    {
+      "from": "durable",
+      "to": "sidecar",
+      "y": 306,
+      "label": "đánh thức container nếu ngủ",
+      "variant": "dashed"
+    },
+    {
+      "from": "sidecar",
+      "to": "engine",
+      "y": 348,
+      "label": "restore snapshot từ R2, start",
+      "variant": "default",
+      "note": "cold start 12–26 s"
+    },
+    {
+      "from": "engine",
+      "to": "sidecar",
+      "y": 394,
+      "label": "ready",
+      "variant": "return"
+    },
+    {
+      "from": "durable",
+      "to": "sidecar",
+      "y": 436,
+      "label": "gọi API + control key",
+      "variant": "security"
+    },
+    {
+      "from": "sidecar",
+      "to": "engine",
+      "y": 478,
+      "label": "chuyển vào 127.0.0.1",
+      "variant": "default"
+    },
+    {
+      "from": "engine",
+      "to": "model",
+      "y": 546,
+      "label": "prompt + tools",
+      "variant": "emphasis"
+    },
+    {
+      "from": "model",
+      "to": "engine",
+      "y": 588,
+      "label": "tool call ghi dữ liệu",
+      "variant": "return"
+    },
+    {
+      "from": "engine",
+      "to": "tg",
+      "y": 630,
+      "label": "tạo approval, gửi nút Duyệt",
+      "variant": "dashed"
+    },
+    {
+      "from": "tg",
+      "to": "user",
+      "y": 672,
+      "label": "nút Duyệt / Từ chối",
+      "variant": "dashed"
+    },
+    {
+      "from": "engine",
+      "to": "durable",
+      "y": 714,
+      "label": "awaiting_approval, home được ngủ",
+      "variant": "return"
+    },
+    {
+      "from": "user",
+      "to": "tg",
+      "y": 788,
+      "label": "bấm Duyệt",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tg",
+      "to": "worker",
+      "y": 830,
+      "label": "POST webhook (callback)",
+      "variant": "security"
+    },
+    {
+      "from": "worker",
+      "to": "durable",
+      "y": 872,
+      "label": "chuyển quyết định",
+      "variant": "default"
+    },
+    {
+      "from": "durable",
+      "to": "sidecar",
+      "y": 914,
+      "label": "đánh thức nếu cần",
+      "variant": "dashed",
+      "note": "đo được 17.7 s khi đang ngủ"
+    },
+    {
+      "from": "sidecar",
+      "to": "engine",
+      "y": 960,
+      "label": "quyết định approval",
+      "variant": "default"
+    },
+    {
+      "from": "engine",
+      "to": "model",
+      "y": 1002,
+      "label": "chạy tool, gửi kết quả",
+      "variant": "emphasis"
+    },
+    {
+      "from": "model",
+      "to": "engine",
+      "y": 1044,
+      "label": "câu trả lời",
+      "variant": "return"
+    },
+    {
+      "from": "engine",
+      "to": "tg",
+      "y": 1086,
+      "label": "sendMessage trả lời",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tg",
+      "to": "user",
+      "y": 1128,
+      "label": "nhận câu trả lời",
+      "variant": "return"
+    }
   ],
   "activations": [
-    { "participant": "worker", "from": 216, "to": 270, "type": "cloud" },
-    { "participant": "durable", "from": 258, "to": 440, "type": "backend" },
-    { "participant": "engine", "from": 342, "to": 720, "type": "backend" },
-    { "participant": "model", "from": 540, "to": 594, "type": "external" },
-    { "participant": "worker", "from": 824, "to": 878, "type": "cloud" },
-    { "participant": "durable", "from": 866, "to": 920, "type": "backend" },
-    { "participant": "engine", "from": 950, "to": 1088, "type": "backend" },
-    { "participant": "model", "from": 992, "to": 1046, "type": "external" }
+    {
+      "participant": "worker",
+      "from": 216,
+      "to": 270,
+      "type": "cloud"
+    },
+    {
+      "participant": "durable",
+      "from": 258,
+      "to": 444,
+      "type": "backend"
+    },
+    {
+      "participant": "engine",
+      "from": 342,
+      "to": 720,
+      "type": "backend"
+    },
+    {
+      "participant": "model",
+      "from": 540,
+      "to": 594,
+      "type": "external"
+    },
+    {
+      "participant": "worker",
+      "from": 824,
+      "to": 878,
+      "type": "cloud"
+    },
+    {
+      "participant": "durable",
+      "from": 866,
+      "to": 920,
+      "type": "backend"
+    },
+    {
+      "participant": "engine",
+      "from": 954,
+      "to": 1092,
+      "type": "backend"
+    },
+    {
+      "participant": "model",
+      "from": 996,
+      "to": 1050,
+      "type": "external"
+    }
   ],
   "cards": [
-    { "dot": "cyan", "title": "Engine không public", "items": ["Mọi request vào qua Worker", "Chỉ Durable Object gọi được container", "Sidecar kiểm control key trước khi chuyển"] },
-    { "dot": "amber", "title": "Approval không giữ home thức", "items": ["Run chờ duyệt có trạng thái awaiting_approval", "Container ngủ bình thường trong lúc chờ", "Bấm Duyệt sẽ đánh thức home và turn chạy tiếp"] },
-    { "dot": "emerald", "title": "Ngủ là trạng thái mặc định", "items": ["Home chỉ thức khi có tin, job hay quyết định", "Snapshot trên R2 là bản gốc", "Đĩa container chỉ là cache"] }
+    {
+      "dot": "cyan",
+      "title": "Engine không public",
+      "items": [
+        "Mọi request vào qua Worker",
+        "Chỉ Durable Object gọi được container",
+        "Sidecar kiểm control key trước khi chuyển"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Approval không giữ home thức",
+      "items": [
+        "Run chờ duyệt có trạng thái awaiting_approval",
+        "Container ngủ bình thường trong lúc chờ",
+        "Bấm Duyệt sẽ đánh thức home và turn chạy tiếp"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Ngủ là trạng thái mặc định",
+      "items": [
+        "Home chỉ thức khi có tin, job hay quyết định",
+        "Snapshot trên R2 là bản gốc",
+        "Đĩa container chỉ là cache"
+      ]
+    }
   ]
 }

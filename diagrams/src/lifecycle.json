@@ -1,27 +1,18 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "diagram_type": "lifecycle",
   "meta": {
     "title": "Vòng đời container của một home",
-    "quality_profile": "showcase",
-    "viewBox": [
-      980,
-      566
-    ]
+    "locale": "vi",
+    "output": "diagrams/lifecycle.html",
+    "quality_profile": "showcase"
   },
-  "lanes": [
-    {
-      "id": "main",
-      "label": "Vòng đời chính"
-    },
-    {
-      "id": "side",
-      "label": "Chờ duyệt và sự cố"
-    },
-    {
-      "id": "terminal",
-      "label": "Không có trạng thái kết thúc"
-    }
+  "mainPath": [
+    "sleeping",
+    "waking",
+    "ready",
+    "running",
+    "idle"
   ],
   "states": [
     {
@@ -29,8 +20,6 @@
       "type": "start",
       "label": "Ngủ",
       "sublabel": "không tốn compute",
-      "lane": "main",
-      "col": 0,
       "step": "01",
       "tag": "sleep"
     },
@@ -39,8 +28,6 @@
       "type": "active",
       "label": "Đang thức",
       "sublabel": "restore snapshot từ R2",
-      "lane": "main",
-      "col": 1,
       "step": "02",
       "tag": "12–26 s"
     },
@@ -49,8 +36,6 @@
       "type": "active",
       "label": "Sẵn sàng",
       "sublabel": "engine ready",
-      "lane": "main",
-      "col": 2,
       "step": "03",
       "tag": "ready"
     },
@@ -59,8 +44,6 @@
       "type": "active",
       "label": "Chạy turn / job",
       "sublabel": "model, tool, shell",
-      "lane": "main",
-      "col": 3,
       "step": "04",
       "tag": "work"
     },
@@ -69,8 +52,6 @@
       "type": "waiting",
       "label": "Rảnh",
       "sublabel": "đếm sleepAfter 15 phút",
-      "lane": "main",
-      "col": 4,
       "step": "05",
       "tag": "idle"
     },
@@ -79,8 +60,6 @@
       "type": "failure",
       "label": "Mất phiên",
       "sublabel": "deploy rollout thay container",
-      "lane": "side",
-      "col": 0,
       "tag": "recoverable"
     },
     {
@@ -88,8 +67,6 @@
       "type": "waiting",
       "label": "Chờ duyệt",
       "sublabel": "awaiting_approval",
-      "lane": "side",
-      "col": 1,
       "tag": "approval"
     }
   ],
@@ -99,98 +76,60 @@
       "from": "sleeping",
       "to": "waking",
       "label": "tin · job · duyệt · wake",
-      "variant": "emphasis",
-      "labelAt": [
-        171,
-        122
-      ]
+      "variant": "emphasis"
     },
     {
       "id": "engine-up",
       "from": "waking",
       "to": "ready",
-      "label": "start engine",
-      "labelAt": [
-        325,
-        122
-      ]
+      "label": "start engine"
     },
     {
       "id": "start-turn",
       "from": "ready",
       "to": "running",
-      "label": "turn / job",
-      "labelAt": [
-        479,
-        122
-      ]
+      "label": "turn / job"
     },
     {
       "id": "turn-done",
       "from": "running",
       "to": "idle",
-      "label": "xong",
-      "labelAt": [
-        633,
-        122
-      ]
+      "label": "xong"
     },
     {
       "id": "go-sleep",
       "from": "idle",
       "to": "sleeping",
       "label": "SIGTERM: dừng engine, đẩy snapshot",
-      "variant": "emphasis",
-      "fromSide": "top",
-      "toSide": "left",
-      "via": [
-        [
-          710,
-          72
-        ],
-        [
-          16,
-          72
-        ],
-        [
-          16,
-          157
-        ]
-      ]
+      "variant": "emphasis"
     },
     {
       "id": "needs-approval",
       "from": "running",
       "to": "approval",
       "label": "cần approval",
-      "variant": "security",
-      "route": "drop"
+      "variant": "security"
     },
     {
       "id": "approval-idle",
       "from": "approval",
       "to": "idle",
       "label": "không giữ thức",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "bottom"
+      "variant": "dashed"
     },
     {
       "id": "rollout",
       "from": "ready",
       "to": "lost",
       "label": "deploy",
-      "variant": "security",
-      "route": "drop"
+      "variant": "security"
     },
     {
       "id": "recover",
       "from": "lost",
       "to": "waking",
       "label": "request kế tiếp",
-      "variant": "emphasis",
-      "fromSide": "left",
-      "toSide": "bottom"
+      "variant": "emphasis"
     }
   ],
   "cards": [
