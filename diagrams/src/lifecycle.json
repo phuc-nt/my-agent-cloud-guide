@@ -1,0 +1,225 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Vòng đời container của một home",
+    "quality_profile": "showcase",
+    "viewBox": [
+      980,
+      566
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Vòng đời chính"
+    },
+    {
+      "id": "side",
+      "label": "Chờ duyệt và sự cố"
+    },
+    {
+      "id": "terminal",
+      "label": "Không có trạng thái kết thúc"
+    }
+  ],
+  "states": [
+    {
+      "id": "sleeping",
+      "type": "start",
+      "label": "Ngủ",
+      "sublabel": "không tốn compute",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "sleep"
+    },
+    {
+      "id": "waking",
+      "type": "active",
+      "label": "Đang thức",
+      "sublabel": "restore snapshot từ R2",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "12–26 s"
+    },
+    {
+      "id": "ready",
+      "type": "active",
+      "label": "Sẵn sàng",
+      "sublabel": "engine ready",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "ready"
+    },
+    {
+      "id": "running",
+      "type": "active",
+      "label": "Chạy turn / job",
+      "sublabel": "model, tool, shell",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "work"
+    },
+    {
+      "id": "idle",
+      "type": "waiting",
+      "label": "Rảnh",
+      "sublabel": "đếm sleepAfter 15 phút",
+      "lane": "main",
+      "col": 4,
+      "step": "05",
+      "tag": "idle"
+    },
+    {
+      "id": "lost",
+      "type": "failure",
+      "label": "Mất phiên",
+      "sublabel": "deploy rollout thay container",
+      "lane": "side",
+      "col": 0,
+      "tag": "recoverable"
+    },
+    {
+      "id": "approval",
+      "type": "waiting",
+      "label": "Chờ duyệt",
+      "sublabel": "awaiting_approval",
+      "lane": "side",
+      "col": 1,
+      "tag": "approval"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "wake",
+      "from": "sleeping",
+      "to": "waking",
+      "label": "tin · job · duyệt · wake",
+      "variant": "emphasis",
+      "labelAt": [
+        171,
+        122
+      ]
+    },
+    {
+      "id": "engine-up",
+      "from": "waking",
+      "to": "ready",
+      "label": "start engine",
+      "labelAt": [
+        325,
+        122
+      ]
+    },
+    {
+      "id": "start-turn",
+      "from": "ready",
+      "to": "running",
+      "label": "turn / job",
+      "labelAt": [
+        479,
+        122
+      ]
+    },
+    {
+      "id": "turn-done",
+      "from": "running",
+      "to": "idle",
+      "label": "xong",
+      "labelAt": [
+        633,
+        122
+      ]
+    },
+    {
+      "id": "go-sleep",
+      "from": "idle",
+      "to": "sleeping",
+      "label": "SIGTERM: dừng engine, đẩy snapshot",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "left",
+      "via": [
+        [
+          710,
+          72
+        ],
+        [
+          16,
+          72
+        ],
+        [
+          16,
+          157
+        ]
+      ]
+    },
+    {
+      "id": "needs-approval",
+      "from": "running",
+      "to": "approval",
+      "label": "cần approval",
+      "variant": "security",
+      "route": "drop"
+    },
+    {
+      "id": "approval-idle",
+      "from": "approval",
+      "to": "idle",
+      "label": "không giữ thức",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom"
+    },
+    {
+      "id": "rollout",
+      "from": "ready",
+      "to": "lost",
+      "label": "deploy",
+      "variant": "security",
+      "route": "drop"
+    },
+    {
+      "id": "recover",
+      "from": "lost",
+      "to": "waking",
+      "label": "request kế tiếp",
+      "variant": "emphasis",
+      "fromSide": "left",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Chỉ trả tiền khi thức",
+      "items": [
+        "Tin nhắn, job tới giờ (Worker cron), quyết định approval hay wake tay đánh thức home",
+        "Thức lạnh: restore snapshot rồi start engine, đo được 12–26 s",
+        "15 phút không có request thì SIGTERM, đẩy snapshot lần cuối rồi ngủ"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Chờ duyệt không giữ thức",
+      "items": [
+        "Run chờ duyệt có trạng thái awaiting_approval, không phải running",
+        "Container vẫn ngủ được trong lúc chờ",
+        "Duyệt lúc ngủ đánh thức home và turn chạy tiếp"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Deploy có thể làm mất phiên",
+      "items": [
+        "Rollout thay container đang chạy giữa chừng",
+        "Cho home ngủ trước khi deploy để snapshot được đẩy",
+        "Request kế tiếp đánh thức bản mới từ snapshot"
+      ]
+    }
+  ]
+}

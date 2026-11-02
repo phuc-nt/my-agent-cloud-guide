@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Dữ liệu của home: snapshot, lịch sử cấu hình, drop",
+    "viewBox": [
+      1080,
+      636
+    ],
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    {
+      "label": "Máy cá nhân"
+    },
+    {
+      "label": "Lệnh đồng bộ"
+    },
+    {
+      "label": "R2 · nguồn sự thật"
+    },
+    {
+      "label": "Container · sidecar"
+    },
+    {
+      "label": "Container · engine"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "workcopy",
+      "type": "frontend",
+      "label": "Bản làm việc",
+      "sublabel": "git của home",
+      "stage": 0,
+      "row": 0,
+      "tag": "chỉ là clone",
+      "height": 72
+    },
+    {
+      "id": "fresh",
+      "type": "external",
+      "label": "File luôn mới",
+      "sublabel": "vd. cookie",
+      "stage": 0,
+      "row": 2,
+      "tag": "extension làm mới",
+      "height": 72,
+      "width": 124
+    },
+    {
+      "id": "update",
+      "type": "security",
+      "label": "lệnh update",
+      "sublabel": "chỉ fast-forward",
+      "stage": 1,
+      "row": 0,
+      "tag": "base refs/cloud/home",
+      "height": 72,
+      "width": 124
+    },
+    {
+      "id": "pull",
+      "type": "backend",
+      "label": "lệnh pull",
+      "sublabel": "fast-forward hoặc merge",
+      "stage": 1,
+      "row": 1,
+      "tag": "như git pull",
+      "height": 72
+    },
+    {
+      "id": "drop",
+      "type": "backend",
+      "label": "Edge drop",
+      "sublabel": "edge agent đẩy qua Worker",
+      "stage": 1,
+      "row": 2,
+      "tag": "outbound",
+      "height": 72,
+      "width": 116
+    },
+    {
+      "id": "snapshot",
+      "type": "database",
+      "label": "R2 snapshot",
+      "sublabel": "home, workspace, browser",
+      "stage": 2,
+      "row": 1,
+      "tag": "manifest generation",
+      "height": 72
+    },
+    {
+      "id": "sidecar",
+      "type": "backend",
+      "label": "Sidecar",
+      "sublabel": "restore · autocommit · push",
+      "stage": 3,
+      "row": 1,
+      "tag": "writer duy nhất",
+      "height": 72,
+      "width": 124
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "Engine",
+      "sublabel": "đọc/ghi home trên đĩa",
+      "stage": 4,
+      "row": 1,
+      "tag": "đĩa là cache",
+      "height": 72
+    },
+    {
+      "id": "backup",
+      "type": "database",
+      "label": "Backup hằng ngày",
+      "sublabel": "giữ 30 ngày",
+      "stage": 2,
+      "row": 0,
+      "tag": "restore một lệnh",
+      "height": 72,
+      "width": 136
+    },
+    {
+      "id": "standby",
+      "type": "database",
+      "label": "Standby",
+      "sublabel": "trên máy cá nhân",
+      "stage": 0,
+      "row": 3,
+      "tag": "mỗi giờ",
+      "height": 72
+    }
+  ],
+  "flows": [
+    {
+      "from": "workcopy",
+      "to": "update",
+      "label": "commit cuối",
+      "variant": "default"
+    },
+    {
+      "from": "update",
+      "to": "snapshot",
+      "label": "ghi file của commit",
+      "classification": "từ chối nếu lệch",
+      "variant": "security",
+      "labelDy": 14
+    },
+    {
+      "from": "snapshot",
+      "to": "sidecar",
+      "label": "restore khi thức",
+      "variant": "emphasis",
+      "labelDy": 55
+    },
+    {
+      "from": "sidecar",
+      "to": "engine",
+      "label": "home trên đĩa",
+      "variant": "emphasis"
+    },
+    {
+      "from": "sidecar",
+      "to": "snapshot",
+      "label": "push khi đổi, trước SIGTERM",
+      "classification": "commit cloud",
+      "variant": "emphasis",
+      "labelDy": -48,
+      "labelDx": 14
+    },
+    {
+      "from": "snapshot",
+      "to": "pull",
+      "label": "sửa trên cloud",
+      "variant": "default",
+      "labelDy": 11
+    },
+    {
+      "from": "pull",
+      "to": "workcopy",
+      "label": "fast-forward / merge",
+      "variant": "default",
+      "fromSide": "left",
+      "toSide": "bottom",
+      "via": [
+        [
+          100,
+          278
+        ]
+      ]
+    },
+    {
+      "from": "fresh",
+      "to": "drop",
+      "label": "file mới",
+      "variant": "dashed"
+    },
+    {
+      "from": "drop",
+      "to": "snapshot",
+      "label": "edge/drop",
+      "variant": "dashed"
+    },
+    {
+      "from": "snapshot",
+      "to": "backup",
+      "label": "copy hằng ngày",
+      "variant": "default"
+    },
+    {
+      "from": "snapshot",
+      "to": "standby",
+      "label": "tải mỗi giờ",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        [
+          530,
+          506
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Một writer",
+      "items": [
+        "Chỉ container ghi home",
+        "Đĩa container là cache, R2 là bản lâu dài",
+        "Drop chỉ vào chỗ riêng, sidecar nạp vào"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Như git",
+      "items": [
+        "update từ chối khi không fast-forward",
+        "Sửa trên cloud thành commit cloud",
+        "pull đem sửa trên cloud về máy"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Đường lùi",
+      "items": [
+        "Backup hằng ngày, restore một lệnh",
+        "Standby mỗi giờ trên máy cá nhân",
+        "Failback dùng bản R2 hoặc standby"
+      ]
+    }
+  ]
+}

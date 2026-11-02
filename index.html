@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud agent cá nhân</title>
+<meta name="description" content="Cách đưa một agent cá nhân chạy trên laptop lên cloud mà không viết lại nó: một container cho mỗi home, ngủ khi rảnh, scheduler và Telegram ở Worker, R2 là nguồn sự thật, credential tiêm ở egress, approval giữ ở engine.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Cloud agent cá nhân">
+<meta property="og:description" content="Kiến trúc, vòng đời, chi phí và bài học khi dựng cloud agent phục vụ cá nhân trên Cloudflare Containers.">
+<meta property="og:type" content="article">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/BeVietnamPro-Medium-VN.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/BeVietnamPro-Bold-VN.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+  (function () {
+    var t = null;
+    try { t = localStorage.getItem("guide-theme"); } catch (e) {}
+    if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Bỏ qua tới nội dung</a>
+<div class="progress" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="#top" aria-label="Cloud agent cá nhân, về đầu trang">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="var(--ink)"/><path d="M9 20.5a4.5 4.5 0 0 1 1.2-8.84A6 6 0 0 1 21.6 12a4.2 4.2 0 0 1 1.4 8.2" fill="none" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"/><rect x="12" y="17" width="8" height="7" rx="1.5" fill="var(--accent)"/></svg>
+      <span>Cloud agent cá nhân</span>
+    </a>
+    <nav class="topnav" aria-label="Mục lục">
+      <a href="#kien-truc">Kiến trúc</a>
+      <a href="#mo-phong">Mô phỏng</a>
+      <a href="#vong-doi">Vòng đời</a>
+      <a href="#bao-mat">Bảo mật</a>
+      <a href="#chi-phi">Chi phí</a>
+      <a href="#quyet-dinh">Quyết định</a>
+      <a href="#tu-dung">Tự dựng</a>
+    </nav>
+    <button class="icon-btn" id="theme" type="button" aria-label="Đổi giao diện sáng / tối">
+      <svg class="theme-light-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="theme-dark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ================= HERO ================= -->
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <h1>Đưa agent cá nhân lên cloud <span class="hl">mà không viết lại nó</span></h1>
+      <p class="lead">Một agent chạy trên laptop thì tắt máy là mất: job theo lịch bị lỡ, điện thoại không gọi được, approval nằm chờ trong một tab đã đóng. Tài liệu này kể cách đặt nguyên engine đó vào một container trên Cloudflare: container ngủ khi rảnh, thức dậy khi có tin nhắn, job hoặc một nút Duyệt.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#mo-phong">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>
+          Chạy thử mô phỏng
+        </a>
+        <a class="btn btn-ghost" href="#kien-truc">Xem kiến trúc</a>
+      </div>
+    </div>
+
+    <div class="stack" role="img" aria-label="Bốn lớp một tin nhắn đi qua: kênh chat, Worker, Durable Object, rồi container chứa sidecar và engine; snapshot nằm ở R2.">
+      <div class="stack-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+        <div><strong>Kênh</strong><small>Telegram webhook, web UI, Web Push</small></div>
+        <span class="tag">luôn mở</span>
+      </div>
+      <div class="stack-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+        <div><strong>Worker</strong><small>routes, cron mỗi phút, egress handler</small></div>
+        <span class="tag">control plane</span>
+      </div>
+      <div class="stack-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+        <div><strong>Durable Object</strong><small>một cho mỗi home, giữ control key</small></div>
+        <span class="tag">1 / home</span>
+      </div>
+      <div class="stack-row is-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
+        <div><strong>Container</strong><small>chỉ tính tiền khi thức</small>
+          <div class="stack-inner"><span class="tag tag-accent">sidecar :8080</span><span class="tag tag-accent">engine (pinned)</span></div>
+        </div>
+        <span class="tag tag-sleep">ngủ sau 15'</span>
+      </div>
+      <div class="stack-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        <div><strong>R2 + D1</strong><small>snapshot home, backup 30 ngày, lịch job</small></div>
+        <span class="tag tag-ok">nguồn sự thật</span>
+      </div>
+      <p class="stack-caption">Đường đi của một tin nhắn, từ trên xuống</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="facts">
+      <div class="fact"><b>~0,074 USD</b><span>mỗi giờ container thức (standard-1, giá niêm yết)</span></div>
+      <div class="fact"><b>12–26 s</b><span>cold start đo được: restore snapshot rồi khởi động engine</span></div>
+      <div class="fact"><b>0 dòng</b><span>engine bị sửa để chạy trên cloud; mọi thay đổi đi upstream</span></div>
+      <div class="fact"><b>0 cổng</b><span>mở trên máy cá nhân; edge chỉ poll ra ngoài</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PROBLEM ================= -->
+<section class="section" id="van-de">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Bài toán: agent tốt trên laptop, nhưng laptop không thức 24/7</h2>
+      <p class="lead">Agent cá nhân ở đây là một crew: một master agent bạn nói chuyện cùng, giao việc cho các agent chuyên trách, dùng tool, nhớ sự kiện, chạy job theo lịch và luôn hỏi trước khi làm việc làm thay đổi dữ liệu.</p>
+    </div>
+    <div class="cols">
+      <div class="panel panel-quiet">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
+          Chạy trên laptop
+        </h3>
+        <ul>
+          <li>Gập máy là job 7 giờ sáng không chạy, không ai báo.</li>
+          <li>Ra đường không gọi được agent, trừ khi mở cổng hay dựng tunnel.</li>
+          <li>Approval chờ trong một tab; tab đóng thì việc đứng.</li>
+          <li>Dữ liệu, cookie, token rải trong thư mục home của máy.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.78A6 6 0 1 0 6 16.9"/><path d="M6 19h11.5"/></svg>
+          Điều muốn có trên cloud
+        </h3>
+        <ul>
+          <li>Luôn gọi được từ điện thoại; job chạy đúng giờ dù máy tắt.</li>
+          <li>Chỉ trả tiền compute khi agent thực sự làm việc.</li>
+          <li>Dữ liệu cá nhân nằm trong tài khoản cloud của chính mình.</li>
+          <li>Giữ nguyên approval, memory, tool và cách cấu hình quen thuộc.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TWO LAYERS ================= -->
+<section class="section" id="hai-lop">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Hai lớp, hai repository</h2>
+      <p class="lead">Điểm mấu chốt của cả thiết kế: <strong>engine không biết mình đang chạy trên cloud.</strong> Nó vẫn là một process Python nghe ở <code>127.0.0.1:8765</code>, y như trên laptop. Mọi thứ cloud-specific nằm ở lớp platform bao quanh.</p>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+          Engine
+          <span class="tag">Python · public</span>
+        </h3>
+        <ul>
+          <li>FastAPI + uvicorn, một process; agent loop với <code>max_steps</code>.</li>
+          <li>Crew: master agent điều phối, các agent chuyên trách.</li>
+          <li>Tool: file trong workspace, shell, web fetch/search, browser (Playwright), memory, scripts, MCP (OAuth).</li>
+          <li>Approval có TTL, lưu trong SQLite; run chờ duyệt có status <code>awaiting_approval</code>.</li>
+          <li>Memory là các fact có <em>basis</em> (operator / said / inferred / extracted) và khoảng hiệu lực.</li>
+          <li>Provider: anthropic, openrouter, ollama; route chain fallback; prompt cache 1h.</li>
+          <li>Kênh: web UI (cả phone inbox, Web Push), Telegram long-poll hoặc webhook.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.78A6 6 0 1 0 6 16.9"/><path d="M6 19h11.5"/></svg>
+          Platform
+          <span class="tag">Cloudflare</span>
+        </h3>
+        <ul>
+          <li><strong>Worker</strong>: proxy web UI sau lớp đăng nhập, Telegram webhook, API cho edge, console; cron mỗi phút; outbound handler cho egress.</li>
+          <li><strong>Durable Object</strong>: một cho mỗi home, giữ handle của container, đánh thức nó và chuyển tiếp request kèm control key.</li>
+          <li><strong>Container</strong> (standard-1: ½ vCPU, 4 GiB): sidecar Starlette ở <code>:8080</code> đứng trước engine đã pin version; shell của engine chạy trong bubblewrap.</li>
+          <li><strong>D1</strong>: jobs, job runs, sessions, edge tasks. <strong>R2</strong>: snapshot, backup 30 ngày, drops.</li>
+          <li><strong>Secrets</strong>: Worker secrets thành env var của container lúc khởi động.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="rule">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-6 3-10.5 6"/></svg>
+      <div>
+        <p><strong>Engine changes go upstream.</strong> Khi cloud cần engine làm khác đi (một config key, một hook, chế độ webhook, cờ <code>--no-schedule</code>), thay đổi được viết như một feature trong repo engine, có test, phát hành version mới. Platform chỉ bump version đã pin.</p>
+        <p class="muted">Nhờ vậy hai bên deploy độc lập: version engine nào cũng chạy được với commit platform nào, và engine vẫn chạy được trên laptop mà không cần platform.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="section" id="kien-truc">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Kiến trúc tổng thể</h2>
+      <p class="lead">Kéo để di chuyển, cuộn để phóng to. Mở viewer đầy đủ để tìm node, focus một nhánh hay trace một đường đi.</p>
+    </div>
+    <figure class="diagram reveal" data-diagram="overview">
+      <div class="diagram-frame" style="--ar: 1378 / 680"><iframe title="Sơ đồ kiến trúc tổng thể" loading="lazy"></iframe></div>
+      <figcaption>
+        <span class="grow">Đường đi: kênh chat, Worker, Durable Object rồi tới container (sidecar + engine); xung quanh là D1, R2, egress và edge.</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-open>Mở viewer đầy đủ</button>
+        <a class="small" href="diagrams/src/overview.json">JSON nguồn</a>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= SIMULATOR ================= -->
+<section class="section" id="mo-phong">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Mô phỏng: container thức dậy, làm việc, rồi ngủ</h2>
+      <p class="lead">Bấm một kịch bản và xem từng bước đi qua hệ thống. Thời gian được nén: vài giây trên màn hình là vài chục giây thật, 15 phút chờ ngủ chỉ còn vài giây. Đồng hồ chi phí chỉ chạy khi container thức.</p>
+    </div>
+
+    <div class="sim" id="sim">
+      <div class="sim-controls" role="group" aria-label="Kịch bản mô phỏng">
+        <button class="btn btn-primary btn-sm" type="button" data-scenario="message">Gửi tin nhắn</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-scenario="job">Job đến giờ</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-scenario="approval">Việc cần duyệt</button>
+        <button class="btn btn-approve btn-sm" type="button" id="sim-approve" disabled>Duyệt</button>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm" type="button" id="sim-sleep">Cho ngủ ngay</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="sim-reset">Làm lại</button>
+      </div>
+      <div class="sim-body">
+        <div class="sim-stage" id="sim-stage">
+          <div class="lane">
+            <div class="st" id="st-user">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+              <div><strong>Điện thoại</strong><small>Telegram / web</small></div>
+            </div>
+            <div class="st" id="st-worker">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+              <div><strong>Worker</strong><small>routes · cron</small></div>
+            </div>
+            <div class="st" id="st-do">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+              <div><strong>Durable Object</strong><small>1 / home</small></div>
+            </div>
+            <div class="st st-box" id="st-box" data-state="sleeping">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>
+              <div><strong>Container</strong><small>sidecar + engine</small></div>
+              <span class="st-state" id="st-state">ngủ</span>
+            </div>
+            <div class="st" id="st-model">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a4 4 0 0 0-4 4 4 4 0 0 0-3 6.5A4 4 0 0 0 9 20h0a3 3 0 0 0 3-3V3zM12 3a4 4 0 0 1 4 4 4 4 0 0 1 3 6.5A4 4 0 0 1 15 20h0a3 3 0 0 1-3-3"/></svg>
+              <div><strong>Model API</strong><small>prompt cache 1h</small></div>
+            </div>
+          </div>
+          <div class="lane-under">
+            <div class="st st-cron" id="st-cron">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              <div><strong>Cron</strong><small>mỗi phút · D1</small></div>
+            </div>
+            <div class="st" id="st-r2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+              <div><strong>R2</strong><small>snapshot home</small></div>
+            </div>
+          </div>
+          <div class="packet" id="packet" aria-hidden="true"></div>
+          <div class="packet-label" id="packet-label" aria-hidden="true"></div>
+
+          <div class="sim-meta">
+            <div class="meter"><span>Đồng hồ mô phỏng</span><b id="m-clock">00:00</b></div>
+            <div class="meter"><span>Thời gian thức</span><b id="m-awake">0 s</b></div>
+            <div class="meter"><span>Chi phí container</span><b id="m-cost">$0.0000</b></div>
+            <div class="meter"><span>Run chờ duyệt</span><b id="m-wait">0</b></div>
+          </div>
+          <div class="idle" id="idle" hidden>
+            <div class="idle-top"><span>Không có request mới · ngủ sau</span><span id="idle-left">15:00</span></div>
+            <div class="idle-bar"><i id="idle-bar"></i></div>
+          </div>
+        </div>
+        <div class="sim-log-wrap">
+          <div class="sim-log-head"><span>Nhật ký</span><span id="sim-status">Container đang ngủ, không tốn compute</span></div>
+          <ol class="sim-log" id="sim-log" aria-live="polite">
+            <li class="empty">Chọn một kịch bản ở trên để bắt đầu.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <p class="sim-note">Mô phỏng dùng số đo tham khảo: cold start 12–26 s (lấy 15 s), resume sau khi duyệt 17,7 s, snapshot cuối khoảng 1,35 s, sleepAfter 15 phút, giá standard-1 khoảng 0,074 USD/giờ. Kịch bản là việc chung chung, không phải dữ liệu thật.</p>
+  </div>
+</section>
+
+<!-- ================= MESSAGE ================= -->
+<section class="section" id="tin-nhan">
+  <div class="wrap split">
+    <figure class="diagram reveal" data-diagram="message">
+      <div class="diagram-frame" style="--ar: 930 / 1240"><iframe title="Sơ đồ tuần tự: một tin nhắn đi qua hệ thống" loading="lazy"></iframe></div>
+      <figcaption>
+        <span class="grow">Sequence: tin nhắn khi container đang ngủ.</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-open>Mở viewer</button>
+        <a class="small" href="diagrams/src/message.json">JSON</a>
+      </figcaption>
+    </figure>
+    <div class="prose">
+      <h2>Một tin nhắn đi qua hệ thống</h2>
+      <p>Telegram gọi webhook của Worker, kèm secret token. Worker không chờ engine: nó trả 200 ngay cho Telegram rồi xử lý tiếp, vì cold start có thể dài hơn timeout của webhook.</p>
+      <p>Durable Object của home kiểm tra container. Đang ngủ thì nó start container; sidecar kéo snapshot từ R2, mở engine, đợi engine báo sẵn sàng rồi mới nhận request. Mọi request vào container đều mang <strong>control key</strong>, và sidecar từ chối request thiếu key.</p>
+      <p>Engine chạy turn như trên laptop: master agent, tool loop, gọi model với prompt cache. Câu trả lời đi ngược về Telegram. Sau đó container ở lại 15 phút, rồi ngủ nếu không còn request.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIFECYCLE ================= -->
+<section class="section" id="vong-doi">
+  <div class="wrap">
+    <div class="prose">
+      <h2>Vòng đời container</h2>
+      <p>Mô hình chi phí xoay quanh một ý: <strong>container chỉ tốn tiền khi thức.</strong> Muốn ngủ được thì không gì trong container phải tự thức theo giờ. Vì vậy scheduler và Telegram chuyển ra Worker: engine chạy với <code>--no-schedule</code>, và cron của Worker gọi <code>POST /api/jobs/{id}/run</code> khi đến hạn.</p>
+      <p>Một run đang chờ duyệt <strong>không giữ container thức</strong>. Trạng thái <code>awaiting_approval</code> nằm trong SQLite của engine, được snapshot lên R2 khi container ngủ. Bấm Duyệt sẽ đánh thức container, và turn chạy tiếp từ chỗ dừng.</p>
+      <table class="nums">
+        <thead><tr><th>Đo tham khảo</th><th>Giá trị</th></tr></thead>
+        <tbody>
+          <tr><td>Cold start (restore + engine ready)</td><td><b>12–26 s</b></td></tr>
+          <tr><td>Resume turn sau khi duyệt lúc đang ngủ</td><td><b>17,7 s</b></td></tr>
+          <tr><td>Snapshot cuối trước SIGTERM</td><td><b>~1,35 s</b></td></tr>
+          <tr><td>Restore từ một bản backup</td><td><b>36 s</b></td></tr>
+          <tr><td>sleepAfter</td><td><b>15 phút</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <figure class="diagram reveal" data-diagram="lifecycle" style="margin-top: var(--s5)">
+      <div class="diagram-frame" style="--ar: 980 / 566"><iframe title="Sơ đồ vòng đời container" loading="lazy"></iframe></div>
+      <figcaption>
+        <span class="grow">Lifecycle: sleeping, waking, ready, idle, rồi quay về sleeping.</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-open>Mở viewer</button>
+        <a class="small" href="diagrams/src/lifecycle.json">JSON</a>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= SYNC ================= -->
+<section class="section" id="dong-bo">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>R2 là nguồn sự thật, cấu hình đồng bộ kiểu git</h2>
+      <p class="lead">Disk của container chỉ là cache. Chỉ container được ghi vào home trên R2; mỗi lần ghi tăng <em>generation</em> trong manifest, nên một bản cũ không thể đè bản mới.</p>
+    </div>
+    <figure class="diagram reveal" data-diagram="sync">
+      <div class="diagram-frame" style="--ar: 1080 / 636"><iframe title="Sơ đồ đồng bộ cấu hình giữa máy cá nhân và cloud" loading="lazy"></iframe></div>
+      <figcaption>
+        <span class="grow">Dataflow: working copy trên máy ↔ snapshot home trên R2.</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-open>Mở viewer đầy đủ</button>
+        <a class="small" href="diagrams/src/sync.json">JSON nguồn</a>
+      </figcaption>
+    </figure>
+    <div class="cols" style="margin-top: var(--s5)">
+      <div class="panel">
+        <h3>Sửa trên máy, đẩy lên cloud</h3>
+        <p>Home là một git repo. Lệnh <code>update</code> chỉ ghi commit mới nhất lên snapshot khi đó là <strong>fast-forward</strong> so với ref <code>refs/cloud/home</code>. Nó từ chối khi còn thay đổi chưa commit, khi có xung đột, hoặc khi cloud có commit mà máy chưa có.</p>
+      </div>
+      <div class="panel">
+        <h3>Sửa trên cloud, kéo về máy</h3>
+        <p>Khi bạn hay agent sửa cấu hình qua web UI, sidecar tự commit (author riêng cho cloud) trước mỗi lần đẩy home lên R2. Lệnh <code>pull</code> kéo về và fast-forward, hoặc merge nếu hai bên cùng sửa.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SECURITY ================= -->
+<section class="section" id="bao-mat">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Credential ở egress, approval ở engine</h2>
+      <p class="lead">Agent đọc web, đọc email, đọc tài liệu do người khác viết, tức là luôn có nguy cơ prompt injection. Thiết kế giả định agent có thể bị lừa, và giới hạn thiệt hại bằng cấu trúc thay vì bằng lời dặn.</p>
+    </div>
+    <figure class="diagram reveal" data-diagram="egress">
+      <div class="diagram-frame" style="--ar: 958 / 786"><iframe title="Sơ đồ egress và credential injection" loading="lazy"></iframe></div>
+      <figcaption>
+        <span class="grow">Request ra ngoài của container đi qua outbound handler của Worker.</span>
+        <button class="btn btn-ghost btn-sm" type="button" data-open>Mở viewer đầy đủ</button>
+        <a class="small" href="diagrams/src/egress.json">JSON nguồn</a>
+      </figcaption>
+    </figure>
+    <div class="cols-3 cols" style="margin-top: var(--s5)">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2"/></svg>
+          Token không vào container
+        </h3>
+        <p>Với API nhạy cảm (ví dụ Google), container chỉ giữ một token giả. Outbound handler của Worker thay bằng access token thật và chỉ cho qua một danh sách đóng các cặp method + path.</p>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          Approval là feature
+        </h3>
+        <p>Mọi hành động thay đổi dữ liệu đều hỏi trước, trừ lệnh bạn đã đánh dấu là quen (<code>shell_ask_patterns</code>). Platform chỉ phản chiếu và chuyển tiếp approval, không có công tắc “bỏ qua duyệt”.</p>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Engine không public
+        </h3>
+        <p>Không route nào đi thẳng vào container. Chỉ Durable Object gọi được nó, kèm control key. Shell của agent chạy trong bubblewrap; HTTPS bị chặn ở egress dùng CA bundle do sidecar dựng.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= EDGE ================= -->
+<section class="section" id="edge">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Máy cá nhân là edge, không phải node thứ hai</h2>
+      <p class="lead">Vẫn có vài việc cloud không làm thay được: đăng nhập trình duyệt cần màn hình, file chỉ có trên máy. Máy cá nhân phục vụ những việc đó như một edge, và không bao giờ chạy engine song song với cloud.</p>
+    </div>
+    <div class="cols">
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          Chỉ poll ra ngoài
+        </h3>
+        <p>Edge agent hỏi Worker xem có việc không, chỉ chạy những loại task có trong allowlist, rồi trả output. Máy không mở cổng nào, Worker không gọi được vào máy.</p>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+          Drops
+        </h3>
+        <p>Những file máy giữ cho tươi (ví dụ cookie một extension làm mới) được đẩy lên R2 thành drop, và sidecar nhặt về khi container thức. Đăng nhập một site: login trên máy, export cookie dạng Playwright storage state, gửi như một drop.</p>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          Standby và failback
+        </h3>
+        <p>Mỗi giờ máy chép snapshot về. Nếu cloud hỏng, có thể đưa crew chạy lại trên máy từ bản chép đó. Đây là đường lui, không phải chế độ chạy song song.</p>
+      </div>
+      <div class="panel">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6M12 19h8"/></svg>
+          Một script vận hành
+        </h3>
+        <p>Deploy, update, pull, logs, cost, sessions, restore đều đi qua một script duy nhất. Số liệu chi phí và session lấy từ script đó, không ước lượng.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COST ================= -->
+<section class="section" id="chi-phi">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Chi phí: trả cho giờ thức, không phải giờ treo</h2>
+      <p class="lead">Kéo thanh trượt để xem chi phí tháng thay đổi theo thói quen dùng. Phần lớn chênh lệch đến từ một câu hỏi: container thức bao nhiêu giờ mỗi ngày.</p>
+    </div>
+    <div class="calc" id="calc">
+      <div class="calc-in">
+        <div class="presets" role="group" aria-label="Mẫu sử dụng">
+          <button class="chip" type="button" data-preset="light" aria-pressed="false">Dùng nhẹ</button>
+          <button class="chip" type="button" data-preset="daily" aria-pressed="true">Hằng ngày</button>
+          <button class="chip" type="button" data-preset="heavy" aria-pressed="false">Dùng nhiều</button>
+          <button class="chip" type="button" data-preset="always" aria-pressed="false">Luôn bật</button>
+        </div>
+        <div class="field">
+          <label for="c-hours">Giờ container thức mỗi ngày <output id="o-hours" for="c-hours">2 giờ</output></label>
+          <input id="c-hours" type="range" min="0" max="24" step="0.5" value="2">
+          <small>Mỗi lần thức tối thiểu 15 phút (sleepAfter). Vài job và vài cuộc trò chuyện một ngày thường dưới 3 giờ.</small>
+        </div>
+        <div class="field">
+          <label for="c-calls">Lượt gọi model mỗi ngày <output id="o-calls" for="c-calls">40</output></label>
+          <input id="c-calls" type="range" min="0" max="300" step="5" value="40">
+          <small>Mỗi bước của tool loop là một lượt; một câu hỏi thường tốn vài lượt.</small>
+        </div>
+        <div class="field">
+          <label for="c-cold">Số lần quay lại sau hơn 1 giờ nghỉ <output id="o-cold" for="c-cold">4</output></label>
+          <input id="c-cold" type="range" min="0" max="24" step="1" value="4">
+          <small>Prompt cache 1h hết hạn thì lượt đầu phải ghi lại cache cho prefix khoảng 25k token.</small>
+        </div>
+      </div>
+      <div class="calc-out" aria-live="polite">
+        <div class="total"><b id="o-total">$0</b><span>mỗi tháng, ước tính</span></div>
+        <div class="bars">
+          <div class="bar-row is-container"><span>Container</span><div class="bar"><i id="b-container"></i></div><b id="v-container">$0</b></div>
+          <div class="bar-row"><span>Prompt cache</span><div class="bar"><i id="b-model"></i></div><b id="v-model">$0</b></div>
+          <div class="bar-row"><span>Workers + R2</span><div class="bar"><i id="b-platform"></i></div><b id="v-platform">$0</b></div>
+          <div class="bar-row is-always"><span>So với luôn bật</span><div class="bar"><i id="b-always"></i></div><b id="v-always">$0</b></div>
+        </div>
+        <p class="calc-note">Giá niêm yết tháng 10/2026: standard-1 khoảng 0,074 USD/giờ thức, Workers Paid 5 USD/tháng, R2 vài cent. Phần model chỉ tính prefix cache (đọc khoảng 0,006 USD/lượt, ghi khoảng 0,10 USD/lần với model hạng Sonnet), chưa gồm token đầu vào mới và output. Dùng để so sánh thứ bậc, không phải hoá đơn.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DECISIONS ================= -->
+<section class="section" id="quyet-dinh">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Mười quyết định định hình hệ thống</h2>
+      <p class="lead">Mỗi quyết định đều có cái giá. Mở từng mục để xem lý do và thứ phải đánh đổi.</p>
+    </div>
+    <div class="decisions" id="decisions"></div>
+  </div>
+</section>
+
+<!-- ================= LESSONS ================= -->
+<section class="section" id="bai-hoc">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Bài học khi vận hành thật</h2>
+      <p class="lead">Những lỗi không thấy trong bản thiết kế, chỉ lộ ra khi hệ thống đã chạy hằng ngày.</p>
+    </div>
+    <div class="lessons" id="lessons"></div>
+  </div>
+</section>
+
+<!-- ================= CHECKLIST ================= -->
+<section class="section" id="tu-dung">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Tự dựng: checklist</h2>
+      <p class="lead">Thứ tự gợi ý nếu bạn muốn đưa agent của mình lên cloud theo cách này. Tiến độ được lưu trong trình duyệt của bạn.</p>
+    </div>
+    <div class="check-progress"><span id="check-count">0 / 0</span><div class="bar"><i id="check-bar"></i></div><button class="btn btn-ghost btn-sm" type="button" id="check-reset">Xoá đánh dấu</button></div>
+    <div class="checklist" id="checklist"></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div>
+      <h3>Cloud agent cá nhân</h3>
+      <p>Tài liệu chia sẻ kiến thức về cách đưa một agent cá nhân lên Cloudflare Containers. Số liệu là đo tham khảo và giá niêm yết tại thời điểm viết (11/2026).</p>
+    </div>
+    <div>
+      <h3>Mã nguồn</h3>
+      <ul>
+        <li><a href="https://github.com/phuc-nt/my-agent-crew">Engine: my-agent-crew</a></li>
+        <li><a href="https://github.com/phuc-nt/my-agent-cloud-guide/tree/main/diagrams/src">JSON của các sơ đồ</a></li>
+        <li><a href="https://github.com/phuc-nt/my-agent-cloud-guide">Mã nguồn trang này</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Công cụ</h3>
+      <ul>
+        <li>Sơ đồ dựng bằng archify</li>
+        <li>Kiểm a11y và taste bằng ease-design <code>ui gate</code></li>
+        <li>Font: Be Vietnam Pro, JetBrains Mono (OFL)</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<dialog class="viewer" id="viewer" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <strong id="viewer-title">Sơ đồ</strong>
+    <a class="btn btn-ghost btn-sm" id="viewer-tab" href="#" target="_blank" rel="noopener">Mở tab mới</a>
+    <button class="icon-btn" type="button" id="viewer-close" aria-label="Đóng">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <iframe id="viewer-frame" title="Viewer sơ đồ đầy đủ"></iframe>
+</dialog>
+
+<script src="assets/content.js"></script>
+<script src="assets/sim.js"></script>
+<script src="assets/site.js"></script>
+</body>
+</html>

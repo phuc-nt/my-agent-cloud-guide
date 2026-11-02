@@ -1,0 +1,366 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "my-agent-crew trên Cloudflare: tổng quan",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1378,
+      680
+    ],
+    "views": [
+      {
+        "id": "request-path",
+        "label": "Đường đi của một request",
+        "focus": [
+          "user",
+          "worker",
+          "durable",
+          "sidecar",
+          "engine"
+        ],
+        "note": "Mọi request đi qua Worker và Durable Object; engine không có địa chỉ công khai."
+      },
+      {
+        "id": "state",
+        "label": "Trạng thái và dữ liệu",
+        "focus": [
+          "worker",
+          "d1",
+          "sidecar",
+          "r2",
+          "edge"
+        ],
+        "note": "R2 giữ snapshot lâu dài, D1 giữ lịch job và session; đĩa container chỉ là cache."
+      },
+      {
+        "id": "egress-path",
+        "label": "Egress và credential",
+        "focus": [
+          "engine",
+          "egress",
+          "models",
+          "saas"
+        ],
+        "note": "Credential được gắn ở egress handler, ngoài container."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "user",
+      "type": "frontend",
+      "label": "Người dùng",
+      "sublabel": "web UI, Web Push",
+      "pos": [
+        24,
+        110
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "telegram",
+      "type": "external",
+      "label": "Telegram",
+      "sublabel": "bot của home",
+      "pos": [
+        24,
+        270
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "cloud",
+      "label": "Worker",
+      "sublabel": "control plane, cron",
+      "pos": [
+        274,
+        110
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "durable",
+      "type": "backend",
+      "label": "Durable Object",
+      "sublabel": "một cho mỗi home",
+      "pos": [
+        504,
+        110
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "sidecar",
+      "type": "security",
+      "label": "Sidecar",
+      "sublabel": ":8080, kiểm control key",
+      "pos": [
+        734,
+        110
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "Engine my-agent-crew",
+      "sublabel": "127.0.0.1:8765, pinned",
+      "pos": [
+        964,
+        110
+      ],
+      "size": [
+        160,
+        72
+      ]
+    },
+    {
+      "id": "d1",
+      "type": "database",
+      "label": "D1",
+      "sublabel": "jobs, sessions, edge tasks",
+      "pos": [
+        504,
+        320
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "r2",
+      "type": "database",
+      "label": "R2",
+      "sublabel": "snapshots, backups, drops",
+      "pos": [
+        734,
+        320
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "egress",
+      "type": "security",
+      "label": "Egress handler",
+      "sublabel": "allowlist, gắn credential",
+      "pos": [
+        964,
+        320
+      ],
+      "size": [
+        160,
+        72
+      ]
+    },
+    {
+      "id": "models",
+      "type": "external",
+      "label": "Model APIs",
+      "sublabel": "Anthropic, OpenRouter",
+      "pos": [
+        1214,
+        230
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "saas",
+      "type": "external",
+      "label": "SaaS APIs",
+      "sublabel": "Google, Notion MCP",
+      "pos": [
+        1214,
+        410
+      ],
+      "size": [
+        140,
+        72
+      ]
+    },
+    {
+      "id": "edge",
+      "type": "external",
+      "label": "Edge agent",
+      "sublabel": "allowlist task, drops",
+      "pos": [
+        24,
+        470
+      ],
+      "size": [
+        150,
+        72
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Cloudflare account",
+      "wraps": [
+        "worker",
+        "durable",
+        "sidecar",
+        "engine",
+        "d1",
+        "r2",
+        "egress"
+      ],
+      "pad": 34
+    },
+    {
+      "kind": "security-group",
+      "label": "Container (một home)",
+      "wraps": [
+        "sidecar",
+        "engine"
+      ],
+      "pad": 18
+    },
+    {
+      "kind": "security-group",
+      "label": "Máy cá nhân (edge, tuỳ chọn)",
+      "wraps": [
+        "edge"
+      ],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "user-worker",
+      "from": "user",
+      "to": "worker",
+      "label": "HTTPS + login",
+      "variant": "emphasis"
+    },
+    {
+      "id": "telegram-worker",
+      "from": "telegram",
+      "to": "worker",
+      "label": "webhook + secret"
+    },
+    {
+      "id": "worker-durable",
+      "from": "worker",
+      "to": "durable",
+      "label": "gọi home",
+      "variant": "emphasis"
+    },
+    {
+      "id": "durable-sidecar",
+      "from": "durable",
+      "to": "sidecar",
+      "label": "control key",
+      "variant": "security"
+    },
+    {
+      "id": "sidecar-engine",
+      "from": "sidecar",
+      "to": "engine",
+      "label": "localhost",
+      "variant": "emphasis"
+    },
+    {
+      "id": "worker-d1",
+      "from": "worker",
+      "to": "d1",
+      "label": "jobs, sessions",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "sidecar-r2",
+      "from": "sidecar",
+      "to": "r2",
+      "label": "restore / push snapshot",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "engine-egress",
+      "from": "engine",
+      "to": "egress",
+      "label": "mọi egress",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "egress-models",
+      "from": "egress",
+      "to": "models",
+      "label": "model calls"
+    },
+    {
+      "id": "egress-saas",
+      "from": "egress",
+      "to": "saas",
+      "label": "token gắn ở egress",
+      "variant": "security",
+      "labelDy": 11
+    },
+    {
+      "id": "edge-worker",
+      "from": "edge",
+      "to": "worker",
+      "label": "poll đi ra",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Control plane",
+      "items": [
+        "Worker nhận mọi thứ từ Internet",
+        "Cron mỗi phút là đồng hồ của job",
+        "Durable Object giữ container của home"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Execution plane",
+      "items": [
+        "Engine nguyên bản, pin version",
+        "Sidecar restore và push snapshot",
+        "Container ngủ khi rảnh"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Biên an toàn",
+      "items": [
+        "Engine không có địa chỉ công khai",
+        "Token không vào container",
+        "Edge chỉ poll đi ra, không mở cổng"
+      ]
+    }
+  ]
+}

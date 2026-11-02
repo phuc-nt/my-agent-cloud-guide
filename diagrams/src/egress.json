@@ -1,0 +1,280 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Một lệnh ghi ra SaaS: approval rồi credential ở egress",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "approval-layer",
+        "label": "Lớp 1: approval của engine",
+        "focus": [
+          "agent",
+          "needAsk",
+          "ask",
+          "approved",
+          "rejected",
+          "cli"
+        ],
+        "note": "Engine so lệnh với shell_ask_patterns; lệnh ghi chờ người dùng duyệt trên web UI hoặc Telegram."
+      },
+      {
+        "id": "egress-layer",
+        "label": "Lớp 2: egress của platform",
+        "focus": [
+          "cli",
+          "handler",
+          "blocked",
+          "swap",
+          "saas",
+          "result"
+        ],
+        "note": "Worker chặn HTTPS ra ngoài, chỉ cho method + path trong danh sách đóng, rồi mới gắn token thật."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "stop",
+      "label": "Dừng lại",
+      "variant": "exception"
+    },
+    {
+      "id": "user",
+      "label": "Người dùng"
+    },
+    {
+      "id": "engine",
+      "label": "Container: engine + CLI"
+    },
+    {
+      "id": "worker",
+      "label": "Worker: outbound handler"
+    },
+    {
+      "id": "saas",
+      "label": "SaaS API"
+    }
+  ],
+  "phases": [
+    {
+      "id": "p-approval",
+      "label": "Engine: approval",
+      "fromCol": 0,
+      "toCol": 2,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p-egress",
+      "label": "Platform: egress",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "agent",
+    "needAsk",
+    "ask",
+    "approved",
+    "cli",
+    "handler",
+    "swap",
+    "saas",
+    "result"
+  ],
+  "nodes": [
+    {
+      "id": "rejected",
+      "lane": "stop",
+      "col": 2,
+      "type": "security",
+      "label": "Bị từ chối",
+      "sublabel": "agent nhận lời từ chối",
+      "width": 116
+    },
+    {
+      "id": "blocked",
+      "lane": "stop",
+      "col": 3,
+      "type": "security",
+      "label": "403",
+      "sublabel": "ngoài danh sách đóng"
+    },
+    {
+      "id": "ask",
+      "lane": "user",
+      "col": 1,
+      "type": "frontend",
+      "label": "Hỏi người dùng",
+      "sublabel": "web UI / Telegram",
+      "width": 136
+    },
+    {
+      "id": "approved",
+      "lane": "user",
+      "col": 2,
+      "type": "security",
+      "label": "Được duyệt?",
+      "sublabel": "approval có TTL",
+      "width": 120
+    },
+    {
+      "id": "agent",
+      "lane": "engine",
+      "col": 0,
+      "type": "backend",
+      "label": "Agent muốn ghi",
+      "sublabel": "vd. gửi mail qua CLI",
+      "width": 136
+    },
+    {
+      "id": "needAsk",
+      "lane": "engine",
+      "col": 1,
+      "type": "security",
+      "label": "Cần duyệt?",
+      "sublabel": "so shell_ask_patterns",
+      "width": 116
+    },
+    {
+      "id": "cli",
+      "lane": "engine",
+      "col": 2,
+      "type": "backend",
+      "label": "CLI chạy",
+      "sublabel": "chỉ có placeholder token",
+      "width": 104
+    },
+    {
+      "id": "result",
+      "lane": "engine",
+      "col": 5,
+      "type": "backend",
+      "label": "Kết quả về agent",
+      "sublabel": "turn chạy tiếp",
+      "width": 148
+    },
+    {
+      "id": "handler",
+      "lane": "worker",
+      "col": 3,
+      "type": "security",
+      "label": "Danh sách đóng?",
+      "sublabel": "method + path",
+      "tag": "chặn HTTPS",
+      "width": 144
+    },
+    {
+      "id": "swap",
+      "lane": "worker",
+      "col": 4,
+      "type": "security",
+      "label": "Gắn credential",
+      "sublabel": "refresh → access token",
+      "tag": "Worker secret",
+      "width": 136
+    },
+    {
+      "id": "saas",
+      "lane": "saas",
+      "col": 5,
+      "type": "external",
+      "label": "SaaS API",
+      "sublabel": "nhận token thật"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-agent-check",
+      "from": "agent",
+      "to": "needAsk"
+    },
+    {
+      "id": "e-familiar",
+      "from": "needAsk",
+      "to": "cli",
+      "label": "lệnh quen",
+      "role": "branch"
+    },
+    {
+      "id": "e-ask",
+      "from": "needAsk",
+      "to": "ask",
+      "label": "cần duyệt",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-decide",
+      "from": "ask",
+      "to": "approved"
+    },
+    {
+      "id": "e-approved",
+      "from": "approved",
+      "to": "cli",
+      "label": "duyệt",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-rejected",
+      "from": "approved",
+      "to": "rejected",
+      "label": "từ chối",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "e-https",
+      "from": "cli",
+      "to": "handler",
+      "label": "HTTPS ra ngoài"
+    },
+    {
+      "id": "e-blocked",
+      "from": "handler",
+      "to": "blocked",
+      "label": "không",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "e-allowed",
+      "from": "handler",
+      "to": "swap",
+      "label": "có",
+      "variant": "emphasis"
+    },
+    {
+      "id": "e-call",
+      "from": "swap",
+      "to": "saas",
+      "label": "Authorization thật"
+    },
+    {
+      "id": "e-result",
+      "from": "saas",
+      "to": "result",
+      "label": "kết quả",
+      "role": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Token thật không vào container",
+      "items": [
+        "Container chỉ cầm placeholder; refresh token là Worker secret",
+        "Prompt injection không lấy được token, chỉ gọi được những gì policy cho"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Hai lớp độc lập",
+      "items": [
+        "Engine hỏi duyệt trước mọi lệnh ghi; platform không bao giờ tự duyệt",
+        "Lệnh lọt mẫu duyệt vẫn chỉ tới được các path trong danh sách đóng"
+      ]
+    }
+  ]
+}
